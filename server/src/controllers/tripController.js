@@ -54,9 +54,11 @@ function buildDailyBreakdown(trip, weather) {
     currentDate.setDate(startDate.getDate() + index);
     const activityFocus = interests[index % interests.length];
     const weatherTip =
-      weather.temperature >= 30
-        ? "Keep outdoor plans earlier in the day."
-        : "Current weather is suitable for daytime exploring.";
+      typeof weather?.temperature === "number"
+        ? weather.temperature >= 30
+          ? "Keep outdoor plans earlier in the day."
+          : "Current weather is suitable for daytime exploring."
+        : "Check the latest forecast before locking in outdoor activities.";
 
     return {
       day: index + 1,
@@ -157,12 +159,27 @@ export const getTripPackingList = asyncHandler(async (req, res) => {
 
 export const getTripOverview = asyncHandler(async (req, res) => {
   const trip = await findUserTrip(req.params.id, req.user._id);
-  const weather = await getWeatherForDestination(trip.destination.city, trip.destination.country);
-  const attractions = await getNearbyAttractions(
-    `${trip.destination.city}, ${trip.destination.country}`,
-    trip.preferences.interests
-  );
-  const packingList = buildPackingSuggestion(weather);
+  let weather = null;
+  let attractions = [];
+  let packingList = [];
+  const warnings = [];
+
+  try {
+    weather = await getWeatherForDestination(trip.destination.city, trip.destination.country);
+    packingList = buildPackingSuggestion(weather);
+  } catch (error) {
+    warnings.push(error.message || "Weather data is currently unavailable");
+  }
+
+  try {
+    attractions = await getNearbyAttractions(
+      `${trip.destination.city}, ${trip.destination.country}`,
+      trip.preferences.interests
+    );
+  } catch (error) {
+    warnings.push(error.message || "Nearby attractions are currently unavailable");
+  }
+
   const tripDuration =
     Math.ceil(
       (new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) /
@@ -189,14 +206,16 @@ export const getTripOverview = asyncHandler(async (req, res) => {
     packingList,
     dailyBreakdown,
     aiInsights,
+    warnings,
     summary: {
       tripDuration,
-      smartVisitAdvice:
-        weather.temperature > 32
+      smartVisitAdvice: weather
+        ? weather.temperature > 32
           ? "Plan outdoor activities for the early morning or evening."
           : weather.temperature < 18
             ? "Pack a light layer and prioritise indoor breaks if needed."
             : "Current weather looks suitable for a comfortable visit."
+        : "Weather or attractions data is temporarily unavailable, but your trip plan is still saved."
     }
   });
 });
