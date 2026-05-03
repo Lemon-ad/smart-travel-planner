@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 import { User } from "../models/User.js";
 import { AppError } from "../utils/AppError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -27,6 +28,19 @@ export const authenticateToken = asyncHandler(async (req, _res, next) => {
   req.user = user;
   next();
 });
+
+export function validateMongoId(paramName = "id") {
+  return (req, _res, next) => {
+    const value = req.params[paramName];
+
+    if (!mongoose.Types.ObjectId.isValid(value)) {
+      next(new AppError("Invalid record id", 400));
+      return;
+    }
+
+    next();
+  };
+}
 
 export function authorizeRole(...roles) {
   return (req, _res, next) => {

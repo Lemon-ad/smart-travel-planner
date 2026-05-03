@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { City, Country, State } from "country-state-city";
 import {
   createTrip,
   deleteTrip,
@@ -18,6 +19,7 @@ const emptyAuthForm = {
 
 const emptyTripForm = {
   title: "",
+  destinationState: "",
   destinationCity: "",
   destinationCountry: "",
   notes: "",
@@ -72,12 +74,8 @@ function AppLogo({ compact = false }) {
       <div className="brand-mark">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path
-            d="M21 3 10.5 13.5M21 3l-6.2 18-4.4-7.4L3 9.2 21 3ZM10.5 13.5 14 17"
-            fill="none"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
+            d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5Z"
+            fill="currentColor"
           />
         </svg>
       </div>
@@ -150,12 +148,8 @@ function Icon({ name }) {
     ),
     auth: (
       <path
-        d="M14 4h4a2 2 0 0 1 2 2v4M10 20H6a2 2 0 0 1-2-2v-4M14 12h7m0 0-3-3m3 3-3 3M10 4H6a2 2 0 0 0-2 2v4"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
+        d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5Z"
+        fill="currentColor"
       />
     ),
     logout: (
@@ -177,9 +171,95 @@ function Icon({ name }) {
   );
 }
 
+function SearchableSelect({
+  label,
+  name,
+  value,
+  options,
+  placeholder,
+  onSelect,
+  disabled = false
+}) {
+  const containerRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (!containerRef.current?.contains(event.target)) {
+        setOpen(false);
+        setQuery("");
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return options.filter((option) =>
+      option.label.toLowerCase().includes(normalizedQuery)
+    );
+  }, [options, query]);
+
+  return (
+    <label className="searchable-select-label">
+      {label}
+      <div className={`searchable-select ${disabled ? "disabled" : ""}`} ref={containerRef}>
+        <input name={name} type="hidden" value={value} />
+        <button
+          className={`searchable-trigger ${open ? "open" : ""}`}
+          disabled={disabled}
+          type="button"
+          onClick={() => setOpen((current) => !current)}
+        >
+          <span>{value || placeholder}</span>
+          <span className="searchable-caret">▾</span>
+        </button>
+
+        {open && !disabled && (
+          <div className="searchable-menu">
+            <input
+              autoFocus
+              className="searchable-input"
+              placeholder={`Search ${label.toLowerCase()}`}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+
+            <div className="searchable-options">
+              {filteredOptions.length > 0 ? (
+                filteredOptions.map((option) => (
+                  <button
+                    className="searchable-option"
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      onSelect(option);
+                      setOpen(false);
+                      setQuery("");
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))
+              ) : (
+                <div className="searchable-empty">No results found.</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </label>
+  );
+}
+
 function formatTripForForm(trip) {
   return {
     title: trip.title || "",
+    destinationState: trip.destination?.state || "",
     destinationCity: trip.destination?.city || "",
     destinationCountry: trip.destination?.country || "",
     notes: trip.notes || "",
@@ -216,6 +296,56 @@ export default function App() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [selectedCountryCode, setSelectedCountryCode] = useState("");
+  const [selectedStateCode, setSelectedStateCode] = useState("");
+
+  const countryOptions = useMemo(
+    () =>
+      Country.getAllCountries()
+        .map((country) => ({
+          label: country.name,
+          value: country.isoCode
+        }))
+        .sort((left, right) => left.label.localeCompare(right.label)),
+    []
+  );
+
+  const cityOptions = useMemo(() => {
+    if (!selectedCountryCode) {
+      return [];
+    }
+
+    const sourceCities = selectedStateCode
+      ? City.getCitiesOfState(selectedCountryCode, selectedStateCode)
+      : City.getCitiesOfCountry(selectedCountryCode);
+    const uniqueCities = new Map();
+
+    sourceCities.forEach((city) => {
+      if (!uniqueCities.has(city.name)) {
+        uniqueCities.set(city.name, {
+          label: city.name,
+          value: city.name
+        });
+      }
+    });
+
+    return Array.from(uniqueCities.values()).sort((left, right) =>
+      left.label.localeCompare(right.label)
+    );
+  }, [selectedCountryCode, selectedStateCode]);
+
+  const stateOptions = useMemo(() => {
+    if (!selectedCountryCode) {
+      return [];
+    }
+
+    return State.getStatesOfCountry(selectedCountryCode)
+      .map((state) => ({
+        label: state.name,
+        value: state.isoCode
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }, [selectedCountryCode]);
 
   useEffect(() => {
     if (!token) {
@@ -250,6 +380,29 @@ export default function App() {
 
     return () => window.clearTimeout(timer);
   }, [message]);
+
+  useEffect(() => {
+    if (!tripForm.destinationCountry) {
+      setSelectedCountryCode("");
+      return;
+    }
+
+    const matchedCountry = countryOptions.find(
+      (country) => country.label === tripForm.destinationCountry
+    );
+
+    setSelectedCountryCode(matchedCountry?.value || "");
+  }, [countryOptions, tripForm.destinationCountry]);
+
+  useEffect(() => {
+    if (!tripForm.destinationState || stateOptions.length === 0) {
+      setSelectedStateCode("");
+      return;
+    }
+
+    const matchedState = stateOptions.find((state) => state.label === tripForm.destinationState);
+    setSelectedStateCode(matchedState?.value || "");
+  }, [stateOptions, tripForm.destinationState]);
 
   function openAuth(nextMode = "login") {
     setMode(nextMode);
@@ -302,13 +455,32 @@ export default function App() {
     setMessage("");
 
     try {
+      const formData = new FormData(event.currentTarget);
+      const readField = (name, fallback = "") =>
+        String(formData.get(name) || fallback || "").trim();
+
+      const payload = {
+        title: readField("title", tripForm.title),
+        destinationCity: readField("destinationCity", tripForm.destinationCity),
+        destinationState: readField("destinationState", tripForm.destinationState),
+        destinationCountry: readField("destinationCountry", tripForm.destinationCountry),
+        notes: readField("notes", tripForm.notes),
+        category: readField("category", tripForm.category),
+        preferredWeather: readField("preferredWeather", tripForm.preferredWeather),
+        dietaryPreference: readField("dietaryPreference", tripForm.dietaryPreference),
+        interests: readField("interests", tripForm.interests),
+        startDate: readField("startDate", tripForm.startDate),
+        endDate: readField("endDate", tripForm.endDate),
+        budget: readField("budget", tripForm.budget)
+      };
+
       let tripId = editingTripId;
 
       if (editingTripId) {
-        await updateTrip(token, editingTripId, tripForm);
+        await updateTrip(token, editingTripId, payload);
         setMessage("Trip updated successfully.");
       } else {
-        const response = await createTrip(token, tripForm);
+        const response = await createTrip(token, payload);
         tripId = response.trip._id;
         setMessage("Trip created successfully.");
       }
@@ -316,6 +488,8 @@ export default function App() {
       await refreshTrips(tripId);
       setTripForm(emptyTripForm);
       setEditingTripId("");
+      setSelectedCountryCode("");
+      setSelectedStateCode("");
 
       if (tripId) {
         const data = await fetchTripOverview(token, tripId);
@@ -368,6 +542,12 @@ export default function App() {
   function handleEditTrip(trip) {
     setEditingTripId(trip._id);
     setTripForm(formatTripForForm(trip));
+    setSelectedCountryCode(
+      countryOptions.find((country) => country.label === trip.destination.country)?.value || ""
+    );
+    setSelectedStateCode(
+      stateOptions.find((state) => state.label === (trip.destination.state || ""))?.value || ""
+    );
     setMessage("Editing trip.");
     setError("");
   }
@@ -409,6 +589,17 @@ export default function App() {
     );
   }
 
+  function renderFloatingStatus() {
+    if (!error && !message) {
+      return null;
+    }
+
+    const statusType = error ? "error" : "success";
+    const content = error || message;
+
+    return <div className={`floating-status status ${statusType}`}>{content}</div>;
+  }
+
   function renderLandingPage() {
     return (
       <div className="public-page">
@@ -427,6 +618,7 @@ export default function App() {
         </header>
 
         <main className="landing-shell">
+          {renderFloatingStatus()}
           <section className="hero-section">
             <div className="pill-badge">6003CEM · SMART TRAVEL PLANNER</div>
             <h1>
@@ -492,6 +684,7 @@ export default function App() {
         </header>
 
         <main className="auth-page-shell">
+          {renderFloatingStatus()}
           <section className="auth-card soft-card">
             <div className="auth-card-icon">
               <Icon name="auth" />
@@ -555,8 +748,6 @@ export default function App() {
             </form>
           </section>
 
-          {error && <p className="status error auth-status">{error}</p>}
-          {message && <p className="status success auth-status">{message}</p>}
         </main>
       </div>
     );
@@ -576,7 +767,9 @@ export default function App() {
           <div>
             <strong>{trip.title}</strong>
             <p>
-              {trip.destination.city}, {trip.destination.country}
+              {trip.destination.city}
+              {trip.destination.state ? `, ${trip.destination.state}` : ""}
+              {`, ${trip.destination.country}`}
             </p>
           </div>
           <span>{trip.category}</span>
@@ -614,7 +807,7 @@ export default function App() {
           <span className="spark-inline">✣</span> Smart Insights
         </h2>
 
-        <div className="insight-grid">
+          <div className="insight-grid">
           <article className="mini-insight">
             <p className="mini-label">Weather</p>
             <h3>{overview.weather.location}</h3>
@@ -622,6 +815,7 @@ export default function App() {
               {overview.weather.temperature}°C · {overview.weather.description}
             </p>
             <p>Feels like {overview.weather.feelsLike}°C</p>
+            <p>Wind: {overview.weather.windSpeed} m/s</p>
           </article>
 
           <article className="mini-insight">
@@ -629,6 +823,20 @@ export default function App() {
             <h3>{overview.summary.tripDuration} day(s)</h3>
             <p>{overview.summary.smartVisitAdvice}</p>
             <p>Budget: RM {overview.trip.budget}</p>
+          </article>
+
+          <article className="mini-insight wide">
+            <p className="mini-label">Saved Preferences</p>
+            <ul className="chip-list">
+              {overview.trip.preferences.weather && <li>{overview.trip.preferences.weather}</li>}
+              {overview.trip.preferences.dietary && <li>{overview.trip.preferences.dietary}</li>}
+              {overview.trip.preferences.interests.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+              {!overview.trip.preferences.weather &&
+                !overview.trip.preferences.dietary &&
+                overview.trip.preferences.interests.length === 0 && <li>No preferences saved yet</li>}
+            </ul>
           </article>
 
           <article className="mini-insight wide">
@@ -656,6 +864,39 @@ export default function App() {
               )}
             </div>
           </article>
+
+          <article className="mini-insight wide">
+            <p className="mini-label">Daily Breakdown</p>
+            <div className="attraction-list">
+              {overview.dailyBreakdown.map((day) => (
+                <div className="place-row" key={day.day}>
+                  <strong>
+                    Day {day.day} · {day.date}
+                  </strong>
+                  <span>{day.focus}</span>
+                  <p>{day.note}</p>
+                  <p>{day.weatherTip}</p>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          {overview.aiInsights && (
+            <article className="mini-insight wide">
+              <p className="mini-label">Gemini Smart Planner</p>
+              <h3>{overview.aiInsights.headline}</h3>
+              <p>{overview.aiInsights.summary}</p>
+              {overview.aiInsights.timingTip && <p>Timing: {overview.aiInsights.timingTip}</p>}
+              {overview.aiInsights.foodTip && <p>Food: {overview.aiInsights.foodTip}</p>}
+              {overview.aiInsights.highlights?.length > 0 && (
+                <ul className="chip-list">
+                  {overview.aiInsights.highlights.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              )}
+            </article>
+          )}
         </div>
       </section>
     );
@@ -664,13 +905,11 @@ export default function App() {
   function renderDashboard() {
     return (
       <section className="member-body">
+        {renderFloatingStatus()}
         <div className="member-hero">
           <h1>Welcome, {user.name}</h1>
           <p>Plan a trip on the left, then select it to see live weather and smart suggestions.</p>
         </div>
-
-        {error && <p className="status error">{error}</p>}
-        {message && <p className="status success">{message}</p>}
 
         <div className="dashboard-grid">
           <form className="soft-card planner-card" onSubmit={handleTripSubmit}>
@@ -693,6 +932,7 @@ export default function App() {
             <label>
               Title
               <input
+                name="title"
                 value={tripForm.title}
                 onChange={(event) => setTripForm({ ...tripForm, title: event.target.value })}
                 placeholder="Summer in Kyoto"
@@ -701,35 +941,68 @@ export default function App() {
             </label>
 
             <div className="split-fields">
-              <label>
-                City
-                <input
-                  value={tripForm.destinationCity}
-                  onChange={(event) =>
-                    setTripForm({ ...tripForm, destinationCity: event.target.value })
-                  }
-                  placeholder="Kyoto"
-                  required
-                />
-              </label>
+              <SearchableSelect
+                label="Country"
+                name="destinationCountry"
+                options={countryOptions}
+                placeholder="Select country"
+                value={tripForm.destinationCountry}
+                onSelect={(option) => {
+                  setSelectedCountryCode(option.value);
+                  setSelectedStateCode("");
+                  setTripForm({
+                    ...tripForm,
+                    destinationCountry: option.label,
+                    destinationState: "",
+                    destinationCity: ""
+                  });
+                }}
+              />
 
-              <label>
-                Country
-                <input
-                  value={tripForm.destinationCountry}
-                  onChange={(event) =>
-                    setTripForm({ ...tripForm, destinationCountry: event.target.value })
-                  }
-                  placeholder="Japan"
-                  required
-                />
-              </label>
+              <SearchableSelect
+                disabled={!selectedCountryCode || stateOptions.length === 0}
+                label="State"
+                name="destinationState"
+                options={stateOptions}
+                placeholder={selectedCountryCode ? "Select state" : "Choose country first"}
+                value={tripForm.destinationState}
+                onSelect={(option) => {
+                  setSelectedStateCode(option.value);
+                  setTripForm({
+                    ...tripForm,
+                    destinationState: option.label,
+                    destinationCity: ""
+                  });
+                }}
+              />
+
+              <SearchableSelect
+                disabled={!selectedCountryCode}
+                label="City"
+                name="destinationCity"
+                options={cityOptions}
+                placeholder={
+                  selectedCountryCode
+                    ? stateOptions.length > 0 && !selectedStateCode
+                      ? "Choose state first"
+                      : "Select city"
+                    : "Choose country first"
+                }
+                value={tripForm.destinationCity}
+                onSelect={(option) =>
+                  setTripForm({
+                    ...tripForm,
+                    destinationCity: option.label
+                  })
+                }
+              />
             </div>
 
             <div className="split-fields">
               <label>
                 Start date
                 <input
+                  name="startDate"
                   type="date"
                   value={tripForm.startDate}
                   onChange={(event) => setTripForm({ ...tripForm, startDate: event.target.value })}
@@ -740,6 +1013,7 @@ export default function App() {
               <label>
                 End date
                 <input
+                  name="endDate"
                   type="date"
                   value={tripForm.endDate}
                   onChange={(event) => setTripForm({ ...tripForm, endDate: event.target.value })}
@@ -752,6 +1026,7 @@ export default function App() {
               <label>
                 Category
                 <select
+                  name="category"
                   value={tripForm.category}
                   onChange={(event) => setTripForm({ ...tripForm, category: event.target.value })}
                 >
@@ -767,6 +1042,7 @@ export default function App() {
               <label>
                 Budget (RM)
                 <input
+                  name="budget"
                   type="number"
                   min="0"
                   value={tripForm.budget}
@@ -778,6 +1054,7 @@ export default function App() {
             <label>
               Notes
               <textarea
+                name="notes"
                 rows="4"
                 value={tripForm.notes}
                 onChange={(event) => setTripForm({ ...tripForm, notes: event.target.value })}
@@ -788,6 +1065,7 @@ export default function App() {
               <label>
                 Preferred weather
                 <input
+                  name="preferredWeather"
                   value={tripForm.preferredWeather}
                   onChange={(event) =>
                     setTripForm({ ...tripForm, preferredWeather: event.target.value })
@@ -799,6 +1077,7 @@ export default function App() {
               <label>
                 Dietary preference
                 <input
+                  name="dietaryPreference"
                   value={tripForm.dietaryPreference}
                   onChange={(event) =>
                     setTripForm({ ...tripForm, dietaryPreference: event.target.value })
@@ -811,6 +1090,7 @@ export default function App() {
             <label>
               Interests
               <input
+                name="interests"
                 value={tripForm.interests}
                 onChange={(event) => setTripForm({ ...tripForm, interests: event.target.value })}
                 placeholder="museum, cafe, park"

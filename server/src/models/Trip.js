@@ -13,6 +13,11 @@ const tripSchema = new mongoose.Schema(
       trim: true
     },
     destination: {
+      state: {
+        type: String,
+        default: "",
+        trim: true
+      },
       city: {
         type: String,
         required: true,

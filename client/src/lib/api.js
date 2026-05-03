@@ -2,14 +2,15 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001
 
 async function request(path, options = {}) {
   let response;
+  const { headers: optionHeaders = {}, ...restOptions } = options;
 
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
+      ...restOptions,
       headers: {
         "Content-Type": "application/json",
-        ...(options.headers || {})
-      },
-      ...options
+        ...optionHeaders
+      }
     });
   } catch (_error) {
     throw new Error("Cannot connect to the server. Please check that the backend is running.");

@@ -39,7 +39,7 @@ export function buildPackingSuggestion(weather) {
   const items = ["travel documents", "phone charger"];
 
   if (weather.temperature <= 18) {
-    items.push("light jacket");
+    items.push("light jacket", "closed shoes");
   }
 
   if (weather.temperature >= 30) {
@@ -48,6 +48,14 @@ export function buildPackingSuggestion(weather) {
 
   if ((weather.description || "").includes("rain")) {
     items.push("umbrella", "waterproof shoes");
+  }
+
+  if ((weather.description || "").includes("cloud")) {
+    items.push("light layers");
+  }
+
+  if ((weather.windSpeed || 0) >= 8) {
+    items.push("wind-resistant outerwear");
   }
 
   return items;
