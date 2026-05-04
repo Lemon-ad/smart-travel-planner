@@ -140,7 +140,8 @@ export const getTripAttractions = asyncHandler(async (req, res) => {
   const trip = await findUserTrip(req.params.id, req.user._id);
   const attractions = await getNearbyAttractions(
     `${trip.destination.city}, ${trip.destination.country}`,
-    trip.preferences.interests
+    trip.preferences.interests,
+    trip.preferences.dietary
   );
 
   res.json({ attractions });
@@ -174,7 +175,8 @@ export const getTripOverview = asyncHandler(async (req, res) => {
   try {
     attractions = await getNearbyAttractions(
       `${trip.destination.city}, ${trip.destination.country}`,
-      trip.preferences.interests
+      trip.preferences.interests,
+      trip.preferences.dietary
     );
   } catch (error) {
     warnings.push(error.message || "Nearby attractions are currently unavailable");
@@ -185,7 +187,7 @@ export const getTripOverview = asyncHandler(async (req, res) => {
       (new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) /
         (1000 * 60 * 60 * 24)
     ) + 1;
-  const dailyBreakdown = buildDailyBreakdown(trip, weather);
+  let dailyBreakdown = buildDailyBreakdown(trip, weather);
   let aiInsights = null;
 
   try {
@@ -199,23 +201,55 @@ export const getTripOverview = asyncHandler(async (req, res) => {
     aiInsights = null;
   }
 
+  const finalPackingList =
+    aiInsights?.packingList?.length > 0 ? aiInsights.packingList : packingList;
+
+  const finalAttractions =
+    attractions.length > 0
+      ? attractions
+      : (aiInsights?.attractionIdeas || []).map((idea, index) => ({
+          id: `ai-${index + 1}`,
+          name: idea.name || "Suggested place",
+          category: idea.category || "Local recommendation",
+          address: idea.reason || "Suggested by Gemini based on your trip preferences."
+        }));
+
+  if (aiInsights?.dailyBreakdown?.length > 0) {
+    const startDate = new Date(trip.startDate);
+    dailyBreakdown = aiInsights.dailyBreakdown.map((day, index) => {
+      const currentDate = new Date(startDate);
+      currentDate.setDate(startDate.getDate() + index);
+
+      return {
+        day: Number(day.day) || index + 1,
+        date: currentDate.toISOString().slice(0, 10),
+        focus: day.focus || "Flexible exploration",
+        note: [day.morning, day.afternoon, day.evening].filter(Boolean).join(" "),
+        weatherTip: [day.foodNote, day.weatherNote].filter(Boolean).join(" ")
+      };
+    });
+  }
+
   res.json({
     trip,
     weather,
-    attractions,
-    packingList,
+    attractions: finalAttractions,
+    packingList: finalPackingList,
     dailyBreakdown,
     aiInsights,
     warnings,
     summary: {
       tripDuration,
-      smartVisitAdvice: weather
-        ? weather.temperature > 32
-          ? "Plan outdoor activities for the early morning or evening."
-          : weather.temperature < 18
-            ? "Pack a light layer and prioritise indoor breaks if needed."
-            : "Current weather looks suitable for a comfortable visit."
-        : "Weather or attractions data is temporarily unavailable, but your trip plan is still saved."
+      smartVisitAdvice:
+        aiInsights?.timingTip ||
+        aiInsights?.preferenceMatch ||
+        (weather
+          ? weather.temperature > 32
+            ? "Plan outdoor activities for the early morning or evening."
+            : weather.temperature < 18
+              ? "Pack a light layer and prioritise indoor breaks if needed."
+              : "Current weather looks suitable for a comfortable visit."
+          : "Weather or attractions data is temporarily unavailable, but your trip plan is still saved.")
     }
   });
 });

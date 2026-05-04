@@ -802,26 +802,47 @@ export default function App() {
     }
 
     return (
-      <section className="soft-card insights-panel">
+        <section className="soft-card insights-panel">
         <h2>
           <span className="spark-inline">✣</span> Smart Insights
         </h2>
 
+          {overview.warnings?.length > 0 && (
+            <article className="mini-insight wide warning-insight">
+              <p className="mini-label">External API status</p>
+              <ul className="warning-list">
+                {overview.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </article>
+          )}
+
           <div className="insight-grid">
           <article className="mini-insight">
             <p className="mini-label">Weather</p>
-            <h3>{overview.weather.location}</h3>
-            <p>
-              {overview.weather.temperature}°C · {overview.weather.description}
-            </p>
-            <p>Feels like {overview.weather.feelsLike}°C</p>
-            <p>Wind: {overview.weather.windSpeed} m/s</p>
+            {overview.weather ? (
+              <>
+                <h3>{overview.weather.location}</h3>
+                <p>
+                  {overview.weather.temperature}°C · {overview.weather.description}
+                </p>
+                <p>Feels like {overview.weather.feelsLike}°C</p>
+                <p>Wind: {overview.weather.windSpeed} m/s</p>
+              </>
+            ) : (
+              <>
+                <h3>Weather unavailable</h3>
+                <p>The current weather feed could not be loaded right now.</p>
+              </>
+            )}
           </article>
 
           <article className="mini-insight">
             <p className="mini-label">Trip Summary</p>
             <h3>{overview.summary.tripDuration} day(s)</h3>
             <p>{overview.summary.smartVisitAdvice}</p>
+            {overview.aiInsights?.weatherOutlook && <p>{overview.aiInsights.weatherOutlook}</p>}
             <p>Budget: RM {overview.trip.budget}</p>
           </article>
 
@@ -837,6 +858,9 @@ export default function App() {
                 !overview.trip.preferences.dietary &&
                 overview.trip.preferences.interests.length === 0 && <li>No preferences saved yet</li>}
             </ul>
+            {overview.aiInsights?.preferenceMatch && (
+              <p className="insight-note">{overview.aiInsights.preferenceMatch}</p>
+            )}
           </article>
 
           <article className="mini-insight wide">
@@ -888,6 +912,9 @@ export default function App() {
               <p>{overview.aiInsights.summary}</p>
               {overview.aiInsights.timingTip && <p>Timing: {overview.aiInsights.timingTip}</p>}
               {overview.aiInsights.foodTip && <p>Food: {overview.aiInsights.foodTip}</p>}
+              {overview.aiInsights.weatherOutlook && (
+                <p>Weather: {overview.aiInsights.weatherOutlook}</p>
+              )}
               {overview.aiInsights.highlights?.length > 0 && (
                 <ul className="chip-list">
                   {overview.aiInsights.highlights.map((item) => (

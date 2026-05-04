@@ -771,6 +771,11 @@ textarea {
   grid-column: span 2;
 }
 
+.warning-insight {
+  border-color: rgba(233, 131, 61, 0.28);
+  background: rgba(255, 246, 238, 0.9);
+}
+
 .mini-label {
   margin: 0 0 12px;
   text-transform: uppercase;
@@ -800,6 +805,21 @@ textarea {
   background: #fff6ee;
   color: #d46927;
   font-weight: 700;
+}
+
+.warning-list {
+  margin: 0;
+  padding-left: 18px;
+  color: #617793;
+}
+
+.warning-list li + li {
+  margin-top: 6px;
+}
+
+.insight-note {
+  margin: 14px 0 0;
+  color: #617793;
 }
 
 .attraction-list {
