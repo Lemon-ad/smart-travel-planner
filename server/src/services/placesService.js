@@ -54,7 +54,13 @@ async function getNearbyAttractionsFromFoursquare(location, interests = [], diet
     id: place.fsq_id,
     name: place.name,
     address: place.location?.formatted_address || "Address unavailable",
-    category: place.categories?.[0]?.name || "Attraction"
+    category: place.categories?.[0]?.name || "Attraction",
+    openNow:
+      typeof place.closed_bucket === "string"
+        ? place.closed_bucket === "LikelyOpen"
+        : null,
+    rating: place.rating || null,
+    source: "foursquare"
   }));
 }
 
@@ -81,26 +87,42 @@ async function getNearbyAttractionsFromSerp(location, interests = [], dietaryPre
 
   const data = await response.json();
 
-  return (data.local_results || []).slice(0, 5).map((place, index) => ({
+  const localResults = data.local_results || data.places_results || [];
+
+  return localResults.slice(0, 5).map((place, index) => ({
     id: place.place_id || place.data_id || `serp-${index + 1}`,
     name: place.title || "Suggested place",
     address: place.address || "Address unavailable",
-    category: place.type || place.types?.[0] || "Attraction"
+    category: place.type || place.types?.[0] || "Attraction",
+    openNow:
+      typeof place.open_state === "string"
+        ? place.open_state.toLowerCase().includes("open")
+        : null,
+    rating: place.rating || null,
+    source: "serp"
   }));
 }
 
 export async function getNearbyAttractions(location, interests = [], dietaryPreference = "") {
-  try {
-    return await getNearbyAttractionsFromFoursquare(location, interests, dietaryPreference);
-  } catch (_error) {
-    if (!process.env.SERP_API_KEY) {
-      throw new AppError("Nearby attractions are temporarily unavailable", 502);
-    }
+  const providers = [
+    process.env.SERP_API_KEY
+      ? () => getNearbyAttractionsFromSerp(location, interests, dietaryPreference)
+      : null,
+    process.env.FOURSQUARE_API_KEY
+      ? () => getNearbyAttractionsFromFoursquare(location, interests, dietaryPreference)
+      : null
+  ].filter(Boolean);
 
+  for (const provider of providers) {
     try {
-      return await getNearbyAttractionsFromSerp(location, interests, dietaryPreference);
-    } catch (_fallbackError) {
-      throw new AppError("Nearby attractions are temporarily unavailable", 502);
+      const results = await provider();
+      if (results.length > 0) {
+        return results;
+      }
+    } catch (_error) {
+      continue;
     }
   }
+
+  return [];
 }

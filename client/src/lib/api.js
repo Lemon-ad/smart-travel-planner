@@ -91,3 +91,58 @@ export function fetchTripOverview(token, tripId) {
     }
   });
 }
+
+export function shareTrip(token, tripId, payload) {
+  return request(`/trips/${tripId}/share`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
+export function removeTripCollaborator(token, tripId, userId) {
+  return request(`/trips/${tripId}/share/${userId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+}
+
+export function updateProfile(token, payload) {
+  return request("/users/profile", {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
+export function fetchUsers(token) {
+  return request("/users", {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+}
+
+export function fetchAdminTrips(token) {
+  return request("/users/admin/trips", {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+}
+
+export function updateUserRole(token, userId, role) {
+  return request(`/users/${userId}/role`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ role })
+  });
+}

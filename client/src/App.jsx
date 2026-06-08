@@ -3,13 +3,19 @@ import { City, Country, State } from "country-state-city";
 import {
   createTrip,
   deleteTrip,
+  fetchAdminTrips,
   fetchTripOverview,
   fetchTrips,
+  fetchUsers,
   getCurrentUser,
   loginUser,
+  removeTripCollaborator,
   registerUser,
+  shareTrip,
+  updateProfile,
   updateTrip
 } from "./lib/api";
+import { updateUserRole as updateUserRoleApi } from "./lib/api";
 
 const emptyAuthForm = {
   name: "",
@@ -278,6 +284,24 @@ function toLocalStorage(token, user) {
   localStorage.setItem("smart-travel-user", JSON.stringify(user));
 }
 
+function formatPlaceMeta(place) {
+  const parts = [];
+
+  if (typeof place.rating === "number") {
+    parts.push(`Rating ${place.rating}`);
+  }
+
+  if (typeof place.openNow === "boolean") {
+    parts.push(place.openNow ? "Open now" : "Closed now");
+  }
+
+  if (place.source) {
+    parts.push(`Source: ${place.source}`);
+  }
+
+  return parts.join(" · ");
+}
+
 export default function App() {
   const [mode, setMode] = useState("login");
   const [publicView, setPublicView] = useState("landing");
@@ -298,6 +322,10 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [selectedCountryCode, setSelectedCountryCode] = useState("");
   const [selectedStateCode, setSelectedStateCode] = useState("");
+  const [shareForm, setShareForm] = useState({ email: "", permission: "edit" });
+  const [profileForm, setProfileForm] = useState({ name: "", email: "" });
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminTrips, setAdminTrips] = useState([]);
 
   const countryOptions = useMemo(
     () =>
@@ -359,6 +387,7 @@ export default function App() {
           fetchTrips(token)
         ]);
         setUser(currentUser);
+        setProfileForm({ name: currentUser.name || "", email: currentUser.email || "" });
         setTrips(loadedTrips);
       } catch (bootstrapError) {
         handleLogout();
@@ -368,6 +397,27 @@ export default function App() {
 
     bootstrap();
   }, [token]);
+
+  useEffect(() => {
+    if (!token || user?.role !== "admin" || memberView !== "admin") {
+      return;
+    }
+
+    async function loadAdminData() {
+      try {
+        const [{ users: loadedUsers }, { trips: loadedTrips }] = await Promise.all([
+          fetchUsers(token),
+          fetchAdminTrips(token)
+        ]);
+        setAdminUsers(loadedUsers);
+        setAdminTrips(loadedTrips);
+      } catch (adminError) {
+        setError(adminError.message);
+      }
+    }
+
+    loadAdminData();
+  }, [memberView, token, user?.role]);
 
   useEffect(() => {
     if (!message) {
@@ -448,6 +498,19 @@ export default function App() {
     }
   }
 
+  async function refreshAdminData() {
+    if (!token || user?.role !== "admin") {
+      return;
+    }
+
+    const [{ users: loadedUsers }, { trips: loadedTrips }] = await Promise.all([
+      fetchUsers(token),
+      fetchAdminTrips(token)
+    ]);
+    setAdminUsers(loadedUsers);
+    setAdminTrips(loadedTrips);
+  }
+
   async function handleTripSubmit(event) {
     event.preventDefault();
     setLoading(true);
@@ -504,6 +567,14 @@ export default function App() {
   }
 
   async function handleDeleteTrip(tripId) {
+    const shouldDelete = window.confirm(
+      "Are you sure you want to delete this trip? This action cannot be undone."
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
     setLoading(true);
     setError("");
     setMessage("");
@@ -516,6 +587,7 @@ export default function App() {
         setOverview(null);
       }
       await refreshTrips();
+      await refreshAdminData();
     } catch (tripError) {
       setError(tripError.message);
     } finally {
@@ -552,6 +624,85 @@ export default function App() {
     setError("");
   }
 
+  async function handleShareTrip(event) {
+    event.preventDefault();
+    if (!selectedTripId) {
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await shareTrip(token, selectedTripId, shareForm);
+      setOverview((current) => (current ? { ...current, trip: response.trip } : current));
+      await refreshTrips(selectedTripId);
+      setShareForm({ email: "", permission: "edit" });
+      setMessage("Trip collaboration updated successfully.");
+    } catch (shareError) {
+      setError(shareError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRemoveCollaborator(userId) {
+    if (!selectedTripId) {
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await removeTripCollaborator(token, selectedTripId, userId);
+      setOverview((current) => (current ? { ...current, trip: response.trip } : current));
+      await refreshTrips(selectedTripId);
+      setMessage("Collaborator removed.");
+    } catch (removeError) {
+      setError(removeError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleProfileSubmit(event) {
+    event.preventDefault();
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await updateProfile(token, profileForm);
+      setUser(response.user);
+      toLocalStorage(token, response.user);
+      setProfileForm({ name: response.user.name || "", email: response.user.email || "" });
+      setMessage("Profile updated successfully.");
+    } catch (profileError) {
+      setError(profileError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRoleUpdate(userId, role) {
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      await updateUserRoleApi(token, userId, role);
+      await refreshAdminData();
+      setMessage("User role updated.");
+    } catch (roleError) {
+      setError(roleError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function handleLogout() {
     localStorage.removeItem("smart-travel-token");
     localStorage.removeItem("smart-travel-user");
@@ -564,6 +715,10 @@ export default function App() {
     setPublicView("landing");
     setMode("login");
     setMemberView("dashboard");
+    setAdminUsers([]);
+    setAdminTrips([]);
+    setShareForm({ email: "", permission: "edit" });
+    setProfileForm({ name: "", email: "" });
   }
 
   function renderFeatureCards() {
@@ -771,6 +926,14 @@ export default function App() {
               {trip.destination.state ? `, ${trip.destination.state}` : ""}
               {`, ${trip.destination.country}`}
             </p>
+            <div className="trip-access-chips">
+              {trip.access?.isCollaborator && !trip.access?.isOwner && (
+                <span className="access-chip muted">
+                  Shared · {trip.access.collaborationPermission || "view"}
+                </span>
+              )}
+              {trip.access?.isAdmin && <span className="access-chip">Admin access</span>}
+            </div>
           </div>
           <span>{trip.category}</span>
         </button>
@@ -778,10 +941,18 @@ export default function App() {
         <p className="trip-notes">{trip.notes || "No notes added yet."}</p>
 
         <div className="trip-card-actions">
-          <button type="button" onClick={() => handleEditTrip(trip)}>
+          <button
+            disabled={!trip.access?.canEdit}
+            type="button"
+            onClick={() => handleEditTrip(trip)}
+          >
             Edit
           </button>
-          <button type="button" onClick={() => handleDeleteTrip(trip._id)}>
+          <button
+            disabled={!trip.access?.canDelete}
+            type="button"
+            onClick={() => handleDeleteTrip(trip._id)}
+          >
             Delete
           </button>
         </div>
@@ -842,6 +1013,7 @@ export default function App() {
             <p className="mini-label">Trip Summary</p>
             <h3>{overview.summary.tripDuration} day(s)</h3>
             <p>{overview.summary.smartVisitAdvice}</p>
+            {overview.summary.preferenceMatch && <p>{overview.summary.preferenceMatch}</p>}
             {overview.aiInsights?.weatherOutlook && <p>{overview.aiInsights.weatherOutlook}</p>}
             <p>Budget: RM {overview.trip.budget}</p>
           </article>
@@ -861,6 +1033,7 @@ export default function App() {
             {overview.aiInsights?.preferenceMatch && (
               <p className="insight-note">{overview.aiInsights.preferenceMatch}</p>
             )}
+            {overview.aiInsights?.foodTip && <p className="insight-note">{overview.aiInsights.foodTip}</p>}
           </article>
 
           <article className="mini-insight wide">
@@ -881,6 +1054,7 @@ export default function App() {
                     <strong>{place.name}</strong>
                     <span>{place.category}</span>
                     <p>{place.address}</p>
+                    {formatPlaceMeta(place) && <p className="place-meta">{formatPlaceMeta(place)}</p>}
                   </div>
                 ))
               ) : (
@@ -905,6 +1079,58 @@ export default function App() {
             </div>
           </article>
 
+          {(overview.trip.access?.isOwner || overview.trip.access?.isAdmin) && (
+            <article className="mini-insight wide">
+              <p className="mini-label">Smart Group</p>
+              <form className="share-form" onSubmit={handleShareTrip}>
+                <input
+                  type="email"
+                  placeholder="Invite collaborator by email"
+                  value={shareForm.email}
+                  onChange={(event) =>
+                    setShareForm((current) => ({ ...current, email: event.target.value }))
+                  }
+                  required
+                />
+                <select
+                  value={shareForm.permission}
+                  onChange={(event) =>
+                    setShareForm((current) => ({ ...current, permission: event.target.value }))
+                  }
+                >
+                  <option value="edit">Can edit</option>
+                  <option value="view">View only</option>
+                </select>
+                <button className="outline-button compact" disabled={loading} type="submit">
+                  Invite
+                </button>
+              </form>
+
+              <div className="collaborator-list">
+                {overview.trip.sharedWith?.length > 0 ? (
+                  overview.trip.sharedWith.map((entry) => (
+                    <div className="collaborator-row" key={entry.user}>
+                      <div>
+                        <strong>{entry.email}</strong>
+                        <p>{entry.permission === "edit" ? "Can edit this trip" : "View only access"}</p>
+                      </div>
+                      <button
+                        className="inline-plain-button danger"
+                        disabled={loading}
+                        type="button"
+                        onClick={() => handleRemoveCollaborator(entry.user)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p>No collaborators added yet.</p>
+                )}
+              </div>
+            </article>
+          )}
+
           {overview.aiInsights && (
             <article className="mini-insight wide">
               <p className="mini-label">Gemini Smart Planner</p>
@@ -924,6 +1150,75 @@ export default function App() {
               )}
             </article>
           )}
+        </div>
+      </section>
+    );
+  }
+
+  function renderAdmin() {
+    return (
+      <section className="member-body">
+        {renderFloatingStatus()}
+        <div className="member-hero">
+          <h1>Admin Console</h1>
+          <p>Manage user roles, review every shared trip, and oversee the planner system.</p>
+        </div>
+
+        <div className="profile-grid admin-grid">
+          <section className="soft-card profile-panel wide">
+            <div className="card-head">
+              <h2>User management</h2>
+              <span>{adminUsers.length} users</span>
+            </div>
+            <div className="admin-list">
+              {adminUsers.map((member) => (
+                <article className="admin-row" key={member._id}>
+                  <div>
+                    <strong>{member.name}</strong>
+                    <p>{member.email}</p>
+                  </div>
+                  <div className="admin-actions">
+                    <span className="access-chip">{member.role}</span>
+                    <select
+                      value={member.role}
+                      onChange={(event) => handleRoleUpdate(member._id, event.target.value)}
+                    >
+                      <option value="user">User</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="soft-card profile-panel wide">
+            <div className="card-head">
+              <h2>All trips</h2>
+              <span>{adminTrips.length} total</span>
+            </div>
+            <div className="admin-list">
+              {adminTrips.map((trip) => (
+                <article className="admin-row" key={trip._id}>
+                  <div>
+                    <strong>{trip.title}</strong>
+                    <p>
+                      {trip.destination.city}
+                      {trip.destination.state ? `, ${trip.destination.state}` : ""}
+                      {`, ${trip.destination.country}`}
+                    </p>
+                    <p>Owner ID: {trip.user}</p>
+                  </div>
+                  <div className="admin-actions">
+                    <span className="access-chip">{trip.category}</span>
+                    <button type="button" onClick={() => handleDeleteTrip(trip._id)}>
+                      Delete trip
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
         </div>
       </section>
     );
@@ -1148,6 +1443,7 @@ export default function App() {
   function renderProfile() {
     return (
       <section className="member-body">
+        {renderFloatingStatus()}
         <div className="member-hero">
           <h1>Profile</h1>
           <p>Review your account details and project progress at a glance.</p>
@@ -1156,20 +1452,36 @@ export default function App() {
         <div className="profile-grid">
           <section className="soft-card profile-panel">
             <h2>Account details</h2>
-            <div className="profile-stack">
-              <div>
-                <span>Name</span>
-                <strong>{user.name}</strong>
+            <form className="auth-form" onSubmit={handleProfileSubmit}>
+              <label>
+                Display name
+                <input
+                  value={profileForm.name}
+                  onChange={(event) =>
+                    setProfileForm((current) => ({ ...current, name: event.target.value }))
+                  }
+                />
+              </label>
+              <label>
+                Email
+                <input
+                  type="email"
+                  value={profileForm.email}
+                  onChange={(event) =>
+                    setProfileForm((current) => ({ ...current, email: event.target.value }))
+                  }
+                />
+              </label>
+              <div className="profile-stack compact">
+                <div>
+                  <span>Role</span>
+                  <strong>{user.role}</strong>
+                </div>
               </div>
-              <div>
-                <span>Email</span>
-                <strong>{user.email}</strong>
-              </div>
-              <div>
-                <span>Role</span>
-                <strong>{user.role}</strong>
-              </div>
-            </div>
+              <button className="outline-button compact" disabled={loading} type="submit">
+                Save profile
+              </button>
+            </form>
           </section>
 
           <section className="soft-card profile-panel">
@@ -1192,7 +1504,8 @@ export default function App() {
               <li>JWT-based sign-in is active for your account session.</li>
               <li>Trips are stored in MongoDB Atlas under your user record.</li>
               <li>Weather data comes from OpenWeatherMap.</li>
-              <li>Nearby attractions come from Foursquare Places.</li>
+              <li>Nearby attractions use SerpAPI and Foursquare fallbacks when available.</li>
+              <li>Gemini enriches timing advice, packing, and daily planning.</li>
             </ul>
           </section>
         </div>
@@ -1225,6 +1538,15 @@ export default function App() {
             >
               Profile
             </button>
+            {user.role === "admin" && (
+              <button
+                className={`nav-link-button ${memberView === "admin" ? "active" : ""}`}
+                type="button"
+                onClick={() => setMemberView("admin")}
+              >
+                Admin
+              </button>
+            )}
             <button className="outline-button" type="button" onClick={handleLogout}>
               <Icon name="logout" />
               <span>Sign out</span>
@@ -1234,7 +1556,11 @@ export default function App() {
       </header>
 
       <main className="member-shell">
-        {memberView === "dashboard" ? renderDashboard() : renderProfile()}
+        {memberView === "dashboard"
+          ? renderDashboard()
+          : memberView === "profile"
+            ? renderProfile()
+            : renderAdmin()}
       </main>
     </div>
   );

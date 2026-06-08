@@ -53,6 +53,30 @@ const tripSchema = new mongoose.Schema(
         default: []
       }
     },
+    sharedWith: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true
+        },
+        email: {
+          type: String,
+          required: true,
+          trim: true,
+          lowercase: true
+        },
+        permission: {
+          type: String,
+          enum: ["view", "edit"],
+          default: "edit"
+        },
+        invitedAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ],
     startDate: {
       type: String,
       required: true

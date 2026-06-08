@@ -7,6 +7,7 @@ import { sanitizeUser } from "../utils/serializers.js";
 import {
   validateDisplayName,
   validateEmail,
+  validatePassword,
   validateRequiredFields
 } from "../middleware/validateRequest.js";
 
