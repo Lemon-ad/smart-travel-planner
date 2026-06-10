@@ -71,3 +71,39 @@ export const getCurrentUser = asyncHandler(async (req, res) => {
     user: req.user
   });
 });
+
+export const changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+  validateRequiredFields(["currentPassword", "newPassword", "confirmPassword"], req.body);
+
+  const normalizedNewPassword = validatePassword(newPassword);
+
+  if (normalizedNewPassword !== String(confirmPassword || "")) {
+    throw new AppError("New password and confirmation do not match", 400);
+  }
+
+  const user = await User.findById(req.user._id);
+
+  if (!user) {
+    throw new AppError("User not found", 404);
+  }
+
+  const passwordMatches = await bcrypt.compare(String(currentPassword || ""), user.password);
+
+  if (!passwordMatches) {
+    throw new AppError("Current password is incorrect", 401);
+  }
+
+  const sameAsCurrent = await bcrypt.compare(normalizedNewPassword, user.password);
+
+  if (sameAsCurrent) {
+    throw new AppError("New password must be different from the current password", 400);
+  }
+
+  user.password = await bcrypt.hash(normalizedNewPassword, 12);
+  await user.save();
+
+  res.json({
+    message: "Password updated successfully"
+  });
+});

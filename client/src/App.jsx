@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { City, Country, State } from "country-state-city";
 import {
+  changePassword,
   createTrip,
   deleteTrip,
   fetchAdminTrips,
@@ -21,6 +22,12 @@ const emptyAuthForm = {
   name: "",
   email: "",
   password: ""
+};
+
+const emptyPasswordForm = {
+  currentPassword: "",
+  newPassword: "",
+  confirmPassword: ""
 };
 
 const emptyTripForm = {
@@ -324,6 +331,7 @@ export default function App() {
   const [selectedStateCode, setSelectedStateCode] = useState("");
   const [shareForm, setShareForm] = useState({ email: "", permission: "edit" });
   const [profileForm, setProfileForm] = useState({ name: "", email: "" });
+  const [passwordForm, setPasswordForm] = useState(emptyPasswordForm);
   const [adminUsers, setAdminUsers] = useState([]);
   const [adminTrips, setAdminTrips] = useState([]);
 
@@ -703,6 +711,27 @@ export default function App() {
     }
   }
 
+  async function handlePasswordSubmit(event) {
+    event.preventDefault();
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+        throw new Error("New password and confirmation must match.");
+      }
+
+      await changePassword(token, passwordForm);
+      setPasswordForm(emptyPasswordForm);
+      setMessage("Password updated successfully.");
+    } catch (passwordError) {
+      setError(passwordError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function handleLogout() {
     localStorage.removeItem("smart-travel-token");
     localStorage.removeItem("smart-travel-user");
@@ -719,6 +748,7 @@ export default function App() {
     setAdminTrips([]);
     setShareForm({ email: "", permission: "edit" });
     setProfileForm({ name: "", email: "" });
+    setPasswordForm(emptyPasswordForm);
   }
 
   function renderFeatureCards() {
@@ -1172,7 +1202,7 @@ export default function App() {
             </div>
             <div className="admin-list">
               {adminUsers.map((member) => (
-                <article className="admin-row" key={member._id}>
+                <article className="admin-row" key={member.id}>
                   <div>
                     <strong>{member.name}</strong>
                     <p>{member.email}</p>
@@ -1181,7 +1211,7 @@ export default function App() {
                     <span className="access-chip">{member.role}</span>
                     <select
                       value={member.role}
-                      onChange={(event) => handleRoleUpdate(member._id, event.target.value)}
+                      onChange={(event) => handleRoleUpdate(member.id, event.target.value)}
                     >
                       <option value="user">User</option>
                       <option value="admin">Admin</option>
@@ -1207,11 +1237,18 @@ export default function App() {
                       {trip.destination.state ? `, ${trip.destination.state}` : ""}
                       {`, ${trip.destination.country}`}
                     </p>
-                    <p>Owner ID: {trip.user}</p>
+                    <p className="admin-owner-line">
+                      Owner: {trip.user?.name || "Unknown"}
+                      {trip.user?.email ? ` · ${trip.user.email}` : ""}
+                    </p>
                   </div>
                   <div className="admin-actions">
                     <span className="access-chip">{trip.category}</span>
-                    <button type="button" onClick={() => handleDeleteTrip(trip._id)}>
+                    <button
+                      className="admin-delete-button"
+                      type="button"
+                      onClick={() => handleDeleteTrip(trip._id)}
+                    >
                       Delete trip
                     </button>
                   </div>
@@ -1499,14 +1536,70 @@ export default function App() {
           </section>
 
           <section className="soft-card profile-panel wide">
-            <h2>Security and integrations</h2>
-            <ul className="profile-points">
-              <li>JWT-based sign-in is active for your account session.</li>
-              <li>Trips are stored in MongoDB Atlas under your user record.</li>
-              <li>Weather data comes from OpenWeatherMap.</li>
-              <li>Nearby attractions use SerpAPI and Foursquare fallbacks when available.</li>
-              <li>Gemini enriches timing advice, packing, and daily planning.</li>
-            </ul>
+            <h2>Account security</h2>
+            <p className="profile-subcopy">
+              Update your password here. You can keep your account details above and security
+              controls below in one place.
+            </p>
+            <form className="auth-form settings-form" onSubmit={handlePasswordSubmit}>
+              <div className="split-fields">
+                <label>
+                  Current password
+                  <input
+                    type="password"
+                    value={passwordForm.currentPassword}
+                    onChange={(event) =>
+                      setPasswordForm((current) => ({
+                        ...current,
+                        currentPassword: event.target.value
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  New password
+                  <input
+                    type="password"
+                    value={passwordForm.newPassword}
+                    onChange={(event) =>
+                      setPasswordForm((current) => ({
+                        ...current,
+                        newPassword: event.target.value
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+
+              <label>
+                Confirm new password
+                <input
+                  type="password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(event) =>
+                    setPasswordForm((current) => ({
+                      ...current,
+                      confirmPassword: event.target.value
+                    }))
+                  }
+                />
+              </label>
+
+              <div className="profile-stack compact settings-grid">
+                <div>
+                  <span>Session security</span>
+                  <strong>JWT sign-in active</strong>
+                </div>
+                <div>
+                  <span>Smart planner</span>
+                  <strong>Weather, places and Gemini connected</strong>
+                </div>
+              </div>
+
+              <button className="outline-button compact" disabled={loading} type="submit">
+                Update password
+              </button>
+            </form>
           </section>
         </div>
       </section>

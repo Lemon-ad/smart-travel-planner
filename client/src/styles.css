@@ -550,6 +550,7 @@ textarea {
   grid-template-columns: 520px 1fr;
   gap: 24px;
   align-items: start;
+  min-height: calc(100vh - 190px);
 }
 
 .planner-card,
@@ -562,11 +563,17 @@ textarea {
 .planner-card {
   position: sticky;
   top: 118px;
+  max-height: calc(100vh - 150px);
+  overflow-y: auto;
 }
 
 .dashboard-panels {
   display: grid;
   gap: 22px;
+  max-height: calc(100vh - 150px);
+  overflow-y: auto;
+  padding-right: 6px;
+  align-content: start;
 }
 
 .card-head {
@@ -923,6 +930,10 @@ textarea {
   color: #617793;
 }
 
+.admin-owner-line {
+  font-weight: 600;
+}
+
 .inline-plain-button.danger {
   color: #b24832;
 }
@@ -940,6 +951,19 @@ textarea {
 .admin-actions select,
 .admin-actions button {
   min-width: 120px;
+}
+
+.admin-delete-button {
+  border: 1px solid rgba(198, 94, 61, 0.24);
+  border-radius: 14px;
+  padding: 10px 16px;
+  background: rgba(255, 246, 241, 0.96);
+  color: #ba5634;
+  font-weight: 700;
+}
+
+.admin-delete-button:hover {
+  background: rgba(255, 239, 231, 0.98);
 }
 
 .profile-stack.compact {
@@ -961,10 +985,23 @@ textarea {
   font-size: 1.2rem;
 }
 
+.profile-subcopy {
+  margin: -4px 0 20px;
+  color: #617793;
+}
+
 .profile-stack,
 .profile-points {
   display: grid;
   gap: 18px;
+}
+
+.settings-form {
+  gap: 18px;
+}
+
+.settings-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .profile-stack strong,
@@ -1001,6 +1038,14 @@ textarea {
 
   .planner-card {
     position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .dashboard-panels {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 
   .profile-panel.wide,
@@ -1051,6 +1096,10 @@ textarea {
 
   .feature-grid,
   .insight-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-grid {
     grid-template-columns: 1fr;
   }
 

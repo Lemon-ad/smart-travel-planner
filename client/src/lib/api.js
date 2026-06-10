@@ -121,6 +121,16 @@ export function updateProfile(token, payload) {
   });
 }
 
+export function changePassword(token, payload) {
+  return request("/auth/password", {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
 export function fetchUsers(token) {
   return request("/users", {
     headers: {

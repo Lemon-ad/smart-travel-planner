@@ -98,32 +98,111 @@ function buildDailyBreakdown(trip, weather) {
   const endDate = new Date(trip.endDate);
   const totalDays =
     Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-  const interests = trip.preferences.interests.length > 0 ? trip.preferences.interests : ["local highlights"];
+  const interests =
+    trip.preferences.interests.length > 0 ? trip.preferences.interests : ["local highlights"];
   const weatherPreference = String(trip.preferences.weather || "").toLowerCase();
   const weatherDescription = String(weather?.description || "").toLowerCase();
+  const dietaryPreference = String(trip.preferences.dietary || "").toLowerCase();
+  const category = String(trip.category || "Leisure").toLowerCase();
+  const budget = Number(trip.budget || 0);
+
+  const focusPool = Array.from(
+    new Set([
+      ...interests,
+      category.includes("family") ? "family activities" : "",
+      category.includes("food") ? "food spots" : "",
+      category.includes("adventure") ? "outdoor adventure" : "",
+      category.includes("business") ? "business-friendly districts" : "",
+      budget >= 2500 ? "premium experiences" : "",
+      budget > 0 && budget <= 600 ? "budget-friendly discoveries" : "",
+      dietaryPreference ? `${dietaryPreference} dining` : ""
+    ].filter(Boolean))
+  );
+
+  const indoorMode =
+    weatherDescription.includes("rain") ||
+    weatherDescription.includes("storm") ||
+    (typeof weather?.temperature === "number" && weather.temperature >= 31);
+
+  const weatherTip = (() => {
+    if (weatherPreference && weatherDescription) {
+      return `You asked for ${weatherPreference} conditions. Current weather is ${weatherDescription}.`;
+    }
+
+    if (typeof weather?.temperature === "number") {
+      if (weather.temperature >= 31) {
+        return "Warm conditions suggest earlier outdoor plans and longer indoor breaks in the afternoon.";
+      }
+
+      if (weather.temperature <= 18) {
+        return "Cooler conditions make layered outfits and warm meal breaks a good idea.";
+      }
+    }
+
+    if (weatherDescription.includes("rain")) {
+      return "Rain-friendly planning is recommended, so keep one indoor stop and one short outdoor segment each day.";
+    }
+
+    return "Current weather is suitable for daytime exploring.";
+  })();
+
+  const templates = [
+    {
+      focusLabel: "arrival rhythm",
+      note: (focus) =>
+        `Arrival day: check in, settle your essentials, then start with one relaxed ${focus} stop close to your base so the day stays light.`
+    },
+    {
+      focusLabel: "morning exploration",
+      note: (focus) =>
+        `Use the morning for your main ${focus} activity, keep lunch nearby, and leave the late afternoon open for slower wandering or shopping.`
+    },
+    {
+      focusLabel: "food and neighbourhoods",
+      note: (focus) =>
+        `Build the day around ${focus}, then pair it with one neighbourhood walk and one comfort-food break to avoid an overpacked schedule.`
+    },
+    {
+      focusLabel: "indoor backup",
+      note: (focus) =>
+        `Keep a flexible plan with one indoor ${focus} option, one scenic stop, and a simple evening activity that is easy to drop if energy runs low.`
+    },
+    {
+      focusLabel: "signature highlights",
+      note: (focus) =>
+        `Make this your highlight day by prioritising the strongest ${focus} experience first, then keeping smaller local discoveries for the second half.`
+    },
+    {
+      focusLabel: "slow final stretch",
+      note: (focus) =>
+        `Use the final stretch for repeat favourites, souvenir time, and a final ${focus} stop without adding anything that could create travel stress.`
+    }
+  ];
 
   return Array.from({ length: totalDays }, (_, index) => {
     const currentDate = new Date(startDate);
     currentDate.setDate(startDate.getDate() + index);
-    const focus = interests[index % interests.length];
+    const focus = focusPool[index % focusPool.length];
     const isArrival = index === 0;
     const isFinalDay = index === totalDays - 1;
-    const weatherTip =
-      weatherPreference && weatherDescription
-        ? `You asked for ${weatherPreference} conditions. Current weather is ${weatherDescription}.`
-        : typeof weather?.temperature === "number"
-          ? weather.temperature >= 30
-            ? "Warm conditions: keep outdoor plans earlier in the day."
-            : weather.temperature <= 18
-              ? "Cooler conditions: keep a light layer ready for evenings."
-              : "Current weather is suitable for daytime exploring."
-          : "Check the latest forecast before locking in outdoor activities.";
+    const template =
+      isArrival ? templates[0] : isFinalDay ? templates[5] : templates[(index % 4) + 1];
 
-    const baseNote = isArrival
-      ? `Arrival day: settle in and explore a ${focus}-friendly area near your stay.`
-      : isFinalDay
-        ? `Keep this day flexible for favourite ${focus} spots, souvenir stops, and a smooth departure.`
-        : `Mix ${focus} plans with one indoor fallback and one local food stop to keep the day balanced.`;
+    let baseNote = template.note(focus);
+
+    if (indoorMode && !isArrival) {
+      baseNote += " Choose at least one indoor venue or sheltered district so the weather does not disrupt the whole plan.";
+    }
+
+    if (dietaryPreference) {
+      baseNote += ` Keep meals aligned with your ${dietaryPreference} preference so food stops are easier to evaluate.`;
+    }
+
+    if (budget > 0 && budget <= 600) {
+      baseNote += " Favour clustered stops and casual dining to keep transport and meal spending under control.";
+    } else if (budget >= 2500) {
+      baseNote += " Your budget allows one premium reservation or standout experience without squeezing the rest of the day.";
+    }
 
     return {
       day: index + 1,
@@ -139,30 +218,49 @@ function monthNameFromDate(dateString) {
   return new Date(dateString).toLocaleString("en-US", { month: "long" });
 }
 
+function getSeasonForMonth(month, hemisphere = "north") {
+  const northern = ["winter", "winter", "spring", "spring", "spring", "summer", "summer", "summer", "autumn", "autumn", "autumn", "winter"];
+  const southern = ["summer", "summer", "autumn", "autumn", "autumn", "winter", "winter", "winter", "spring", "spring", "spring", "summer"];
+
+  return hemisphere === "south" ? southern[month] : northern[month];
+}
+
+function getHemisphere(country = "") {
+  const southernCountries = ["australia", "new zealand", "argentina", "chile", "south africa", "brazil", "indonesia"];
+  return southernCountries.includes(String(country).toLowerCase()) ? "south" : "north";
+}
+
 function buildPreferenceMatch(trip, weather) {
   const preferredWeather = String(trip.preferences.weather || "").toLowerCase();
   const startMonth = new Date(trip.startDate).getMonth();
   const tripMonthName = monthNameFromDate(trip.startDate);
+  const weatherDescription = String(weather?.description || "").toLowerCase();
+  const season = getSeasonForMonth(startMonth, getHemisphere(trip.destination.country));
 
   if (!preferredWeather) {
     return "";
   }
 
   if (preferredWeather.includes("winter")) {
-    const winterMonths = [11, 0, 1];
-    return winterMonths.includes(startMonth)
-      ? `Your selected dates fall in ${tripMonthName}, which is much closer to your winter-style preference.`
-      : `You prefer winter-like weather, but ${tripMonthName} may feel warmer than ideal. A later-year trip window could suit you better.`;
+    return season === "winter"
+      ? `Your selected dates fall in ${tripMonthName}, which aligns well with your winter preference in ${trip.destination.country}.`
+      : `You prefer winter weather, but ${tripMonthName} is usually ${season} in ${trip.destination.country}. A cooler travel window would match better.`;
   }
 
   if (preferredWeather.includes("sunny")) {
-    return weather?.description?.toLowerCase().includes("rain")
-      ? "You prefer sunny weather, but current conditions are wet. Consider shifting outdoor activities to drier seasons if possible."
-      : "You prefer sunny weather, and the current conditions look reasonably aligned for outdoor exploring.";
+    if (weatherDescription.includes("rain") || weatherDescription.includes("storm")) {
+      return "You prefer sunny weather, but the live conditions are rainy. A drier season would suit your trip better.";
+    }
+
+    if (weatherDescription.includes("cloud")) {
+      return "You prefer sunny weather. The current conditions are mild but cloudier than ideal, so outdoor plans are still possible with lower expectations.";
+    }
+
+    return "You prefer sunny weather, and the current conditions look well aligned for outdoor exploring.";
   }
 
   if (preferredWeather.includes("rain")) {
-    return weather?.description?.toLowerCase().includes("rain")
+    return weatherDescription.includes("rain")
       ? "You prefer rainy or moodier weather, and the current conditions fit that style well."
       : `You prefer rainy weather, but ${tripMonthName} currently looks drier than expected.`;
   }
@@ -174,6 +272,48 @@ function buildPreferenceMatch(trip, weather) {
   }
 
   return `Your saved weather preference is ${trip.preferences.weather}. Use the current weather card to compare how closely the selected dates align.`;
+}
+
+function buildFallbackAttractionIdeas(trip, weather) {
+  const interests = trip.preferences.interests.length > 0 ? trip.preferences.interests : ["local highlights"];
+  const dietaryPreference = String(trip.preferences.dietary || "").toLowerCase();
+  const category = String(trip.category || "Leisure");
+  const budget = Number(trip.budget || 0);
+  const rainy = String(weather?.description || "").toLowerCase().includes("rain");
+  const budgetLabel = budget > 0 && budget <= 600 ? "budget-friendly" : budget >= 2500 ? "premium" : "well-reviewed";
+
+  const suggestions = [
+    {
+      name: `${trip.destination.city} ${interests[0]} trail`,
+      category: interests[0] || category,
+      address: `Explore a ${budgetLabel} ${interests[0] || "local"} route around ${trip.destination.city}, ${trip.destination.country}.`,
+      openNow: null,
+      rating: null,
+      source: "planner"
+    },
+    {
+      name: rainy ? "Indoor city highlights" : "Walkable local highlights",
+      category: rainy ? "Indoor fallback" : "Scenic route",
+      address: rainy
+        ? `Rain is possible, so prioritise indoor museums, markets, and cafes around ${trip.destination.city}.`
+        : `Use a walkable district in ${trip.destination.city} to combine scenery, short breaks, and flexible timing.`,
+      openNow: null,
+      rating: null,
+      source: "planner"
+    },
+    {
+      name: dietaryPreference ? `${dietaryPreference} cafe picks` : `${budgetLabel} food stops`,
+      category: "Food & drink",
+      address: dietaryPreference
+        ? `Look for cafes and casual dining that clearly support ${dietaryPreference} choices near your selected area.`
+        : `Use local review filters to shortlist ${budgetLabel} cafes and dining spots around your trip base.`,
+      openNow: null,
+      rating: null,
+      source: "planner"
+    }
+  ];
+
+  return suggestions;
 }
 
 export const createTrip = asyncHandler(async (req, res) => {
@@ -296,7 +436,11 @@ export const getTripAttractions = asyncHandler(async (req, res) => {
   const attractions = await getNearbyAttractions(
     `${trip.destination.city}, ${trip.destination.country}`,
     trip.preferences.interests,
-    trip.preferences.dietary
+    trip.preferences.dietary,
+    {
+      category: trip.category,
+      budget: trip.budget
+    }
   );
 
   res.json({ attractions });
@@ -331,7 +475,11 @@ export const getTripOverview = asyncHandler(async (req, res) => {
     attractions = await getNearbyAttractions(
       `${trip.destination.city}, ${trip.destination.country}`,
       trip.preferences.interests,
-      trip.preferences.dietary
+      trip.preferences.dietary,
+      {
+        category: trip.category,
+        budget: trip.budget
+      }
     );
   } catch (error) {
     warnings.push("Nearby attractions are currently unavailable");
@@ -362,14 +510,19 @@ export const getTripOverview = asyncHandler(async (req, res) => {
   const finalAttractions =
     attractions.length > 0
       ? attractions
-      : (aiInsights?.attractionIdeas || []).map((idea, index) => ({
-          id: `ai-${index + 1}`,
-          name: idea.name || "Suggested place",
-          category: idea.category || "Local recommendation",
-          address: idea.reason || "Suggested by Gemini based on your trip preferences.",
-          openNow: null,
-          source: "gemini"
-        }));
+      : (aiInsights?.attractionIdeas?.length > 0
+          ? aiInsights.attractionIdeas.map((idea, index) => ({
+              id: `ai-${index + 1}`,
+              name: idea.name || "Suggested place",
+              category: idea.category || "Local recommendation",
+              address: idea.reason || "Suggested by Gemini based on your trip preferences.",
+              openNow: null,
+              source: "gemini"
+            }))
+          : buildFallbackAttractionIdeas(trip, weather).map((idea, index) => ({
+              id: `planner-${index + 1}`,
+              ...idea
+            })));
 
   if (aiInsights?.dailyBreakdown?.length > 0) {
     const startDate = new Date(trip.startDate);
@@ -414,7 +567,9 @@ export const getTripOverview = asyncHandler(async (req, res) => {
 });
 
 export const getAdminTrips = asyncHandler(async (_req, res) => {
-  const trips = await Trip.find({}).sort({ createdAt: -1 });
+  const trips = await Trip.find({})
+    .populate("user", "name email role")
+    .sort({ createdAt: -1 });
 
   res.json({
     trips
