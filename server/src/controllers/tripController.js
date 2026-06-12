@@ -204,10 +204,69 @@ function buildDailyBreakdown(trip, weather) {
       baseNote += " Your budget allows one premium reservation or standout experience without squeezing the rest of the day.";
     }
 
+    const areaLabel = `${trip.destination.city}${trip.destination.state ? `, ${trip.destination.state}` : ""}`;
+    const breakfast = isArrival
+      ? `Have a light breakfast or coffee near your arrival point in ${areaLabel} so the first half of the day stays flexible.`
+      : `Start with breakfast at a well-reviewed local spot in ${areaLabel}, ideally one that matches your ${dietaryPreference || "food"} preference.`;
+    const morning = isArrival
+      ? `Ease into the trip with one short ${focus} stop near your hotel, then use the rest of the morning to get familiar with the neighbourhood.`
+      : `Use the cooler morning hours for your main ${focus} activity and keep transport simple by grouping nearby stops together.`;
+    const lunch = dietaryPreference
+      ? `Choose a lunch venue in ${areaLabel} that clearly supports ${dietaryPreference} choices and sits close to your next activity.`
+      : `Plan lunch in a local district that keeps you close to your next stop instead of crossing the city just to eat.`;
+    const afternoon = indoorMode
+      ? `Keep the afternoon partly indoors with one museum, market, gallery, or sheltered cultural stop before moving into a lighter activity.`
+      : `Spend the afternoon on scenic walks, cultural sights, or one shopping stretch that suits the pace of the day.`;
+    const dinner = dietaryPreference
+      ? `Use dinner for a stronger ${dietaryPreference} recommendation, ideally somewhere known for local flavour without breaking your budget.`
+      : `Save dinner for one memorable local meal that reflects the city’s food culture and gives the day a clear finishing point.`;
+    const evening = isFinalDay
+      ? `Keep the evening relaxed with one final favourite view, market, or dessert stop before preparing for departure.`
+      : `Finish with a low-pressure evening plan such as a viewpoint, night market, riverside walk, or live local district depending on energy.`;
+    const supper = totalDays >= 3
+      ? `If you still have energy, end with a small supper or dessert stop rather than a long extra activity.`
+      : "";
+
+    const cultureNote = `Use at least one stop today to connect with ${trip.destination.country}'s local culture, whether through neighbourhood streets, markets, museums, or historical landmarks.`;
+    const shoppingNote =
+      budget > 0 && budget <= 600
+        ? "Keep shopping focused on compact local markets or low-cost souvenirs so the day stays budget friendly."
+        : budget >= 2500
+          ? "Your budget allows one premium shopping or reservation-style experience if it fits the route."
+          : "If you want shopping time, place it after the main attraction so it does not crowd the core itinerary.";
+    const sceneryNote = indoorMode
+      ? "Choose one sheltered scenic stop or photo-friendly indoor landmark so weather does not remove the visual highlight of the day."
+      : `Leave space for one scenic stop in ${areaLabel}, such as a viewpoint, waterfront, garden, or heritage street.`;
+    const foodNote = dietaryPreference
+      ? `Meals should stay aligned with your ${dietaryPreference} preference so every food stop remains realistic and easy to shortlist.`
+      : "Use meals as natural anchors between activities so the day feels paced instead of rushed.";
+    const weatherNote = weatherTip;
+    const budgetNote =
+      budget > 0
+        ? budget <= 600
+          ? "Prioritise clustered attractions, casual dining, and shorter transport hops to stay within budget."
+          : budget >= 2500
+            ? "You can afford one standout reservation, premium activity, or stronger dining choice today."
+            : "Keep one paid highlight and balance it with free walks, views, or neighbourhood browsing."
+        : "";
+
     return {
       day: index + 1,
       date: currentDate.toISOString().slice(0, 10),
       focus,
+      breakfast,
+      morning,
+      lunch,
+      afternoon,
+      dinner,
+      evening,
+      supper,
+      cultureNote,
+      shoppingNote,
+      sceneryNote,
+      foodNote,
+      weatherNote,
+      budgetNote,
       note: baseNote,
       weatherTip
     };
@@ -249,25 +308,41 @@ function hasUsefulAiDailyBreakdown(dailyBreakdown = []) {
     return false;
   }
 
-  const uniqueFocuses = new Set(
-    dailyBreakdown
-      .map((entry) => String(entry?.focus || "").trim().toLowerCase())
-      .filter(Boolean)
-  );
+  const detailedFields = [
+    "breakfast",
+    "morning",
+    "lunch",
+    "afternoon",
+    "dinner",
+    "evening",
+    "supper",
+    "cultureNote",
+    "shoppingNote",
+    "sceneryNote",
+    "foodNote",
+    "weatherNote",
+    "budgetNote"
+  ];
 
   const uniqueNarratives = new Set(
     dailyBreakdown
       .map((entry) =>
-        [entry?.morning, entry?.afternoon, entry?.evening]
+        detailedFields
+          .map((field) => entry?.[field])
           .filter(Boolean)
           .join(" ")
           .trim()
           .toLowerCase()
       )
-      .filter(Boolean)
+      .filter((value) => value.length > 40)
   );
 
-  return uniqueFocuses.size >= 2 || uniqueNarratives.size >= 2;
+  const richEntries = dailyBreakdown.filter((entry) => {
+    const populated = detailedFields.filter((field) => String(entry?.[field] || "").trim());
+    return populated.length >= 3;
+  }).length;
+
+  return richEntries >= 2 && uniqueNarratives.size >= 2;
 }
 
 function monthNameFromDate(dateString) {
@@ -581,30 +656,34 @@ export const getTripOverview = asyncHandler(async (req, res) => {
             })));
 
   if (hasUsefulAiDailyBreakdown(aiInsights?.dailyBreakdown)) {
-    const startDate = new Date(trip.startDate);
-    dailyBreakdown = aiInsights.dailyBreakdown.map((day, index) => {
-      const currentDate = new Date(startDate);
-      currentDate.setDate(startDate.getDate() + index);
+    dailyBreakdown = dailyBreakdown.map((fallbackDay, index) => {
+      const day = aiInsights.dailyBreakdown[index] || {};
 
       return {
-        day: Number(day.day) || index + 1,
-        date: currentDate.toISOString().slice(0, 10),
-        focus: day.focus || "Flexible exploration",
-        breakfast: day.breakfast || "",
-        morning: day.morning || "",
-        lunch: day.lunch || "",
-        afternoon: day.afternoon || "",
-        dinner: day.dinner || "",
-        evening: day.evening || "",
-        supper: day.supper || "",
-        cultureNote: day.cultureNote || "",
-        shoppingNote: day.shoppingNote || "",
-        sceneryNote: day.sceneryNote || "",
-        foodNote: day.foodNote || "",
-        weatherNote: day.weatherNote || "",
-        budgetNote: day.budgetNote || "",
-        note: [day.morning, day.afternoon, day.evening].filter(Boolean).join(" "),
-        weatherTip: [day.foodNote, day.weatherNote].filter(Boolean).join(" ")
+        ...fallbackDay,
+        day: Number(day.day) || fallbackDay.day,
+        focus: day.focus || fallbackDay.focus,
+        breakfast: day.breakfast || fallbackDay.breakfast,
+        morning: day.morning || fallbackDay.morning,
+        lunch: day.lunch || fallbackDay.lunch,
+        afternoon: day.afternoon || fallbackDay.afternoon,
+        dinner: day.dinner || fallbackDay.dinner,
+        evening: day.evening || fallbackDay.evening,
+        supper: day.supper || fallbackDay.supper,
+        cultureNote: day.cultureNote || fallbackDay.cultureNote,
+        shoppingNote: day.shoppingNote || fallbackDay.shoppingNote,
+        sceneryNote: day.sceneryNote || fallbackDay.sceneryNote,
+        foodNote: day.foodNote || fallbackDay.foodNote,
+        weatherNote: day.weatherNote || fallbackDay.weatherNote,
+        budgetNote: day.budgetNote || fallbackDay.budgetNote,
+        note:
+          [day.morning, day.afternoon, day.evening].filter(Boolean).join(" ").trim() ||
+          fallbackDay.note,
+        weatherTip:
+          [day.foodNote, day.weatherNote, day.budgetNote]
+            .filter(Boolean)
+            .join(" ")
+            .trim() || fallbackDay.weatherTip
       };
     });
   }

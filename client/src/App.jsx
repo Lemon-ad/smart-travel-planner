@@ -206,7 +206,7 @@ function uniqueNonEmptyLines(...lines) {
 }
 
 function buildDailyMoments(day) {
-  return [
+  const structuredMoments = [
     ["Breakfast", day.breakfast],
     ["Morning", day.morning],
     ["Lunch", day.lunch],
@@ -214,6 +214,15 @@ function buildDailyMoments(day) {
     ["Dinner", day.dinner],
     ["Evening", day.evening],
     ["Supper", day.supper]
+  ].filter(([, value]) => String(value || "").trim());
+
+  if (structuredMoments.length > 0) {
+    return structuredMoments;
+  }
+
+  return [
+    [day.day === 1 ? "Arrival plan" : "Daily plan", day.note],
+    ["Weather", day.weatherTip]
   ].filter(([, value]) => String(value || "").trim());
 }
 
@@ -1148,41 +1157,57 @@ export default function App() {
             </div>
           </article>
 
-          <article className="mini-insight wide">
-            <p className="mini-label">Daily Breakdown</p>
-            <div className="attraction-list">
-              {overview.dailyBreakdown.map((day) => (
-                <div className="place-row" key={day.day}>
-                  <strong>
-                    Day {day.day} · {day.date}
-                  </strong>
-                  <span>{day.focus}</span>
-                  <div className="daily-moment-grid">
-                    {buildDailyMoments(day).map(([label, value]) => (
-                      <div className="daily-moment" key={`${day.day}-${label}`}>
-                        <strong>{label}</strong>
-                        <p>{value}</p>
-                      </div>
-                    ))}
+                <article className="mini-insight wide">
+                  <p className="mini-label">Daily Breakdown</p>
+                  <div className="attraction-list">
+                    {overview.dailyBreakdown.map((day) => {
+                      const dailyMoments = buildDailyMoments(day);
+                      const sideNotes = uniqueNonEmptyLines(day.cultureNote, day.shoppingNote, day.sceneryNote);
+                      const emphasisNotes = uniqueNonEmptyLines(day.foodNote, day.weatherNote, day.budgetNote);
+
+                      return (
+                        <div className="daily-plan-row" key={day.day}>
+                          <div className="daily-plan-header">
+                            <strong>
+                              Day {day.day} · {day.date}
+                            </strong>
+                            <span>{day.focus}</span>
+                          </div>
+                          {dailyMoments.length > 0 ? (
+                            <div className="daily-moment-grid">
+                              {dailyMoments.map(([label, value]) => (
+                                <div className="daily-moment" key={`${day.day}-${label}`}>
+                                  <strong>{label}</strong>
+                                  <p>{value}</p>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="daily-empty-copy">Detailed itinerary is still being refined for this day.</p>
+                          )}
+                          {sideNotes.length > 0 && (
+                            <div className="daily-side-notes">
+                              {sideNotes.map((line) => (
+                                <div key={line}>
+                                  <p>{line}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {emphasisNotes.length > 0 && (
+                            <div className="daily-side-notes emphasis">
+                              {emphasisNotes.map((line) => (
+                                <div key={line}>
+                                  <p>{line}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  {uniqueNonEmptyLines(day.cultureNote, day.shoppingNote, day.sceneryNote).length > 0 && (
-                    <div className="daily-side-notes">
-                      {uniqueNonEmptyLines(day.cultureNote, day.shoppingNote, day.sceneryNote).map((line) => (
-                        <p key={line}>{line}</p>
-                      ))}
-                    </div>
-                  )}
-                  {uniqueNonEmptyLines(day.foodNote, day.weatherNote, day.budgetNote).length > 0 && (
-                    <div className="daily-side-notes emphasis">
-                      {uniqueNonEmptyLines(day.foodNote, day.weatherNote, day.budgetNote).map((line) => (
-                        <p key={line}>{line}</p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </article>
+                </article>
 
           {(overview.trip.access?.isOwner || overview.trip.access?.isAdmin) && (
             <article className="mini-insight wide">

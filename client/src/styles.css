@@ -930,6 +930,35 @@ textarea {
   margin-top: 14px;
 }
 
+.daily-plan-row {
+  display: grid;
+  gap: 14px;
+  padding: 20px 22px;
+  border-radius: 22px;
+  background: rgba(248, 251, 255, 0.72);
+  border: 1px solid rgba(226, 234, 243, 0.95);
+}
+
+.daily-plan-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.daily-plan-header strong {
+  display: block;
+  font-size: clamp(1.15rem, 1.5vw, 1.35rem);
+}
+
+.daily-plan-header span {
+  display: inline-block;
+  color: #f57d25;
+  font-weight: 800;
+  font-size: 0.98rem;
+  letter-spacing: 0.02em;
+}
+
 .daily-moment {
   padding: 14px 16px;
   border-radius: 16px;
@@ -948,6 +977,13 @@ textarea {
 
 .daily-moment p {
   margin: 0;
+}
+
+.daily-empty-copy {
+  margin: 10px 0 0;
+  color: #667d9c;
+  font-size: 0.98rem;
+  line-height: 1.65;
 }
 
 .daily-side-notes {
@@ -976,6 +1012,18 @@ textarea {
 .daily-side-notes.emphasis div {
   background: rgba(248, 251, 255, 0.8);
   border-color: rgba(226, 234, 243, 0.95);
+}
+
+@media (max-width: 720px) {
+  .daily-moment-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .daily-plan-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
 }
 
 .share-form {
