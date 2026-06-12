@@ -214,6 +214,62 @@ function buildDailyBreakdown(trip, weather) {
   });
 }
 
+function sanitizeExternalWarning(error, fallbackMessage) {
+  const message = String(error?.message || "").toLowerCase();
+
+  if (!message) {
+    return fallbackMessage;
+  }
+
+  if (
+    message.includes("ssl") ||
+    message.includes("tls") ||
+    message.includes("econn") ||
+    message.includes("network") ||
+    message.includes("fetch failed") ||
+    message.includes("socket") ||
+    message.includes("record_layer")
+  ) {
+    return fallbackMessage;
+  }
+
+  if (message.includes("invalid") && message.includes("key")) {
+    return fallbackMessage;
+  }
+
+  if (message.includes("rate limit")) {
+    return fallbackMessage;
+  }
+
+  return fallbackMessage;
+}
+
+function hasUsefulAiDailyBreakdown(dailyBreakdown = []) {
+  if (!Array.isArray(dailyBreakdown) || dailyBreakdown.length < 2) {
+    return false;
+  }
+
+  const uniqueFocuses = new Set(
+    dailyBreakdown
+      .map((entry) => String(entry?.focus || "").trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  const uniqueNarratives = new Set(
+    dailyBreakdown
+      .map((entry) =>
+        [entry?.morning, entry?.afternoon, entry?.evening]
+          .filter(Boolean)
+          .join(" ")
+          .trim()
+          .toLowerCase()
+      )
+      .filter(Boolean)
+  );
+
+  return uniqueFocuses.size >= 2 || uniqueNarratives.size >= 2;
+}
+
 function monthNameFromDate(dateString) {
   return new Date(dateString).toLocaleString("en-US", { month: "long" });
 }
@@ -468,7 +524,7 @@ export const getTripOverview = asyncHandler(async (req, res) => {
     weather = await getWeatherForDestination(trip.destination.city, trip.destination.country);
     packingList = buildPackingSuggestion(weather);
   } catch (error) {
-    warnings.push(error.message || "Weather data is currently unavailable");
+    warnings.push(sanitizeExternalWarning(error, "Weather data is temporarily unavailable."));
   }
 
   try {
@@ -482,7 +538,7 @@ export const getTripOverview = asyncHandler(async (req, res) => {
       }
     );
   } catch (error) {
-    warnings.push("Nearby attractions are currently unavailable");
+    warnings.push(sanitizeExternalWarning(error, "Nearby attractions are temporarily unavailable."));
   }
 
   const tripDuration =
@@ -524,7 +580,7 @@ export const getTripOverview = asyncHandler(async (req, res) => {
               ...idea
             })));
 
-  if (aiInsights?.dailyBreakdown?.length > 0) {
+  if (hasUsefulAiDailyBreakdown(aiInsights?.dailyBreakdown)) {
     const startDate = new Date(trip.startDate);
     dailyBreakdown = aiInsights.dailyBreakdown.map((day, index) => {
       const currentDate = new Date(startDate);
@@ -534,6 +590,19 @@ export const getTripOverview = asyncHandler(async (req, res) => {
         day: Number(day.day) || index + 1,
         date: currentDate.toISOString().slice(0, 10),
         focus: day.focus || "Flexible exploration",
+        breakfast: day.breakfast || "",
+        morning: day.morning || "",
+        lunch: day.lunch || "",
+        afternoon: day.afternoon || "",
+        dinner: day.dinner || "",
+        evening: day.evening || "",
+        supper: day.supper || "",
+        cultureNote: day.cultureNote || "",
+        shoppingNote: day.shoppingNote || "",
+        sceneryNote: day.sceneryNote || "",
+        foodNote: day.foodNote || "",
+        weatherNote: day.weatherNote || "",
+        budgetNote: day.budgetNote || "",
         note: [day.morning, day.afternoon, day.evening].filter(Boolean).join(" "),
         weatherTip: [day.foodNote, day.weatherNote].filter(Boolean).join(" ")
       };

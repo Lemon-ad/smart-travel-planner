@@ -256,6 +256,7 @@ async function getNearbyAttractionsFromSerp(location, query) {
         ? place.open_state.toLowerCase().includes("open")
         : null,
     rating: place.rating || null,
+    image: place.thumbnail || place.photo || place.images?.[0] || null,
     source: "serp"
   }));
 }

@@ -565,6 +565,16 @@ textarea {
   top: 118px;
   max-height: calc(100vh - 150px);
   overflow-y: auto;
+  padding-bottom: 104px;
+}
+
+.planner-actions-sticky {
+  position: sticky;
+  bottom: -26px;
+  margin: 8px -28px -26px;
+  padding: 16px 28px 24px;
+  background: linear-gradient(180deg, rgba(255, 252, 248, 0) 0%, rgba(255, 252, 248, 0.96) 35%, rgba(255, 252, 248, 1) 100%);
+  backdrop-filter: blur(8px);
 }
 
 .dashboard-panels {
@@ -863,10 +873,33 @@ textarea {
 }
 
 .place-row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 16px;
   padding: 14px 16px;
   border-radius: 16px;
   background: rgba(248, 251, 255, 0.72);
   border: 1px solid rgba(226, 234, 243, 0.95);
+}
+
+.place-image-shell {
+  width: 130px;
+  aspect-ratio: 4 / 3;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(244, 248, 252, 0.92);
+  border: 1px solid rgba(226, 234, 243, 0.95);
+}
+
+.place-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.place-copy {
+  min-width: 0;
 }
 
 .place-row strong,
@@ -888,6 +921,61 @@ textarea {
 .place-meta {
   color: #7a8da6;
   font-size: 0.88rem;
+}
+
+.daily-moment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.daily-moment {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(248, 251, 255, 0.8);
+  border: 1px solid rgba(226, 234, 243, 0.95);
+}
+
+.daily-moment strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #d46927;
+}
+
+.daily-moment p {
+  margin: 0;
+}
+
+.daily-side-notes {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.daily-side-notes div {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 251, 247, 0.88);
+  border: 1px solid rgba(241, 224, 210, 0.92);
+}
+
+.daily-side-notes strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #d46927;
+}
+
+.daily-side-notes p {
+  margin: 0;
+}
+
+.daily-side-notes.emphasis div {
+  background: rgba(248, 251, 255, 0.8);
+  border-color: rgba(226, 234, 243, 0.95);
 }
 
 .share-form {
@@ -954,16 +1042,17 @@ textarea {
 }
 
 .admin-delete-button {
-  border: 1px solid rgba(198, 94, 61, 0.24);
-  border-radius: 14px;
-  padding: 10px 16px;
-  background: rgba(255, 246, 241, 0.96);
-  color: #ba5634;
+  border: 1px solid rgba(198, 94, 61, 0.18);
+  border-radius: 999px;
+  padding: 11px 18px;
+  background: linear-gradient(180deg, rgba(255, 250, 247, 0.98) 0%, rgba(255, 243, 236, 0.98) 100%);
+  color: #b14e2b;
   font-weight: 700;
+  box-shadow: 0 12px 24px rgba(198, 94, 61, 0.08);
 }
 
 .admin-delete-button:hover {
-  background: rgba(255, 239, 231, 0.98);
+  background: linear-gradient(180deg, rgba(255, 244, 237, 1) 0%, rgba(255, 234, 223, 1) 100%);
 }
 
 .profile-stack.compact {
@@ -988,6 +1077,29 @@ textarea {
 .profile-subcopy {
   margin: -4px 0 20px;
   color: #617793;
+}
+
+.primary-action-button.compact-short {
+  width: auto;
+  min-width: 180px;
+  max-width: 220px;
+  justify-content: center;
+  align-self: flex-start;
+  border: 0;
+  border-radius: 16px;
+  padding: 13px 22px;
+  color: #fff;
+  font-weight: 800;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 22%),
+    linear-gradient(135deg, #f67420, #ffb252);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 14px 28px rgba(246, 116, 32, 0.16);
+}
+
+.primary-action-button.compact-short:hover {
+  transform: translateY(-1px);
 }
 
 .profile-stack,
@@ -1040,6 +1152,15 @@ textarea {
     position: static;
     max-height: none;
     overflow: visible;
+    padding-bottom: 26px;
+  }
+
+  .planner-actions-sticky {
+    position: static;
+    margin: 8px 0 0;
+    padding: 0;
+    background: transparent;
+    backdrop-filter: none;
   }
 
   .dashboard-panels {

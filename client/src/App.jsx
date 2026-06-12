@@ -184,6 +184,39 @@ function Icon({ name }) {
   );
 }
 
+function uniqueNonEmptyLines(...lines) {
+  const seen = new Set();
+
+  return lines.filter((line) => {
+    const normalized = String(line || "").trim();
+
+    if (!normalized) {
+      return false;
+    }
+
+    const key = normalized.toLowerCase();
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildDailyMoments(day) {
+  return [
+    ["Breakfast", day.breakfast],
+    ["Morning", day.morning],
+    ["Lunch", day.lunch],
+    ["Afternoon", day.afternoon],
+    ["Dinner", day.dinner],
+    ["Evening", day.evening],
+    ["Supper", day.supper]
+  ].filter(([, value]) => String(value || "").trim());
+}
+
 function SearchableSelect({
   label,
   name,
@@ -307,6 +340,10 @@ function formatPlaceMeta(place) {
   }
 
   return parts.join(" · ");
+}
+
+function getEntityId(entity) {
+  return entity?.id || entity?._id || "";
 }
 
 export default function App() {
@@ -696,6 +733,11 @@ export default function App() {
   }
 
   async function handleRoleUpdate(userId, role) {
+    if (!userId) {
+      setError("User record id is missing.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setMessage("");
@@ -1002,6 +1044,12 @@ export default function App() {
       );
     }
 
+    const summaryLines = uniqueNonEmptyLines(
+      overview.summary.smartVisitAdvice,
+      overview.summary.preferenceMatch,
+      overview.aiInsights?.weatherOutlook
+    );
+
     return (
         <section className="soft-card insights-panel">
         <h2>
@@ -1042,9 +1090,9 @@ export default function App() {
           <article className="mini-insight">
             <p className="mini-label">Trip Summary</p>
             <h3>{overview.summary.tripDuration} day(s)</h3>
-            <p>{overview.summary.smartVisitAdvice}</p>
-            {overview.summary.preferenceMatch && <p>{overview.summary.preferenceMatch}</p>}
-            {overview.aiInsights?.weatherOutlook && <p>{overview.aiInsights.weatherOutlook}</p>}
+            {summaryLines.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
             <p>Budget: RM {overview.trip.budget}</p>
           </article>
 
@@ -1081,10 +1129,17 @@ export default function App() {
               {overview.attractions.length > 0 ? (
                 overview.attractions.map((place) => (
                   <div className="place-row" key={place.id}>
-                    <strong>{place.name}</strong>
-                    <span>{place.category}</span>
-                    <p>{place.address}</p>
-                    {formatPlaceMeta(place) && <p className="place-meta">{formatPlaceMeta(place)}</p>}
+                    {place.image && (
+                      <div className="place-image-shell">
+                        <img alt={place.name} className="place-image" src={place.image} />
+                      </div>
+                    )}
+                    <div className="place-copy">
+                      <strong>{place.name}</strong>
+                      <span>{place.category}</span>
+                      <p>{place.address}</p>
+                      {formatPlaceMeta(place) && <p className="place-meta">{formatPlaceMeta(place)}</p>}
+                    </div>
                   </div>
                 ))
               ) : (
@@ -1102,8 +1157,28 @@ export default function App() {
                     Day {day.day} · {day.date}
                   </strong>
                   <span>{day.focus}</span>
-                  <p>{day.note}</p>
-                  <p>{day.weatherTip}</p>
+                  <div className="daily-moment-grid">
+                    {buildDailyMoments(day).map(([label, value]) => (
+                      <div className="daily-moment" key={`${day.day}-${label}`}>
+                        <strong>{label}</strong>
+                        <p>{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {uniqueNonEmptyLines(day.cultureNote, day.shoppingNote, day.sceneryNote).length > 0 && (
+                    <div className="daily-side-notes">
+                      {uniqueNonEmptyLines(day.cultureNote, day.shoppingNote, day.sceneryNote).map((line) => (
+                        <p key={line}>{line}</p>
+                      ))}
+                    </div>
+                  )}
+                  {uniqueNonEmptyLines(day.foodNote, day.weatherNote, day.budgetNote).length > 0 && (
+                    <div className="daily-side-notes emphasis">
+                      {uniqueNonEmptyLines(day.foodNote, day.weatherNote, day.budgetNote).map((line) => (
+                        <p key={line}>{line}</p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1202,7 +1277,7 @@ export default function App() {
             </div>
             <div className="admin-list">
               {adminUsers.map((member) => (
-                <article className="admin-row" key={member.id}>
+                <article className="admin-row" key={getEntityId(member)}>
                   <div>
                     <strong>{member.name}</strong>
                     <p>{member.email}</p>
@@ -1211,7 +1286,7 @@ export default function App() {
                     <span className="access-chip">{member.role}</span>
                     <select
                       value={member.role}
-                      onChange={(event) => handleRoleUpdate(member.id, event.target.value)}
+                      onChange={(event) => handleRoleUpdate(getEntityId(member), event.target.value)}
                     >
                       <option value="user">User</option>
                       <option value="admin">Admin</option>
@@ -1238,8 +1313,8 @@ export default function App() {
                       {`, ${trip.destination.country}`}
                     </p>
                     <p className="admin-owner-line">
-                      Owner: {trip.user?.name || "Unknown"}
-                      {trip.user?.email ? ` · ${trip.user.email}` : ""}
+                      Owner: {trip.user?.name || "Unknown user"}
+                      {trip.user?.email ? ` · ${trip.user.email}` : " · email unavailable"}
                     </p>
                   </div>
                   <div className="admin-actions">
@@ -1456,9 +1531,11 @@ export default function App() {
               />
             </label>
 
-            <button className="cta-button auth-submit" disabled={loading} type="submit">
-              {loading ? "Saving..." : editingTripId ? "Update trip" : "Save trip"}
-            </button>
+            <div className="planner-actions-sticky">
+              <button className="cta-button auth-submit" disabled={loading} type="submit">
+                {loading ? "Saving..." : editingTripId ? "Update trip" : "Save trip"}
+              </button>
+            </div>
           </form>
 
           <div className="dashboard-panels">
@@ -1515,7 +1592,7 @@ export default function App() {
                   <strong>{user.role}</strong>
                 </div>
               </div>
-              <button className="outline-button compact" disabled={loading} type="submit">
+              <button className="primary-action-button compact-short" disabled={loading} type="submit">
                 Save profile
               </button>
             </form>
@@ -1585,18 +1662,7 @@ export default function App() {
                 />
               </label>
 
-              <div className="profile-stack compact settings-grid">
-                <div>
-                  <span>Session security</span>
-                  <strong>JWT sign-in active</strong>
-                </div>
-                <div>
-                  <span>Smart planner</span>
-                  <strong>Weather, places and Gemini connected</strong>
-                </div>
-              </div>
-
-              <button className="outline-button compact" disabled={loading} type="submit">
+              <button className="primary-action-button compact-short" disabled={loading} type="submit">
                 Update password
               </button>
             </form>
